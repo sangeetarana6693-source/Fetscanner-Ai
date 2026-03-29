@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>FitScan AI</title>
+
+<style>
+body {
+  margin: 0;
+  font-family: Arial;
+  background: linear-gradient(135deg, #43cea2, #185a9d);
+  color: white;
+  text-align: center;
+}
+
+.container { padding: 20px; }
+
+.upload-box {
+  border: 2px dashed white;
+  padding: 30px;
+  margin: 20px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+button {
+  padding: 10px 20px;
+  border: none;
+  border-radius: 10px;
+}
+
+.result {
+  margin-top: 20px;
+}
+</style>
+
+</head>
+
+<body>
+
+<div class="container">
+  <h1>🥗 FitScan AI</h1>
+
+  <input type="file" id="imageInput" accept="image/*" capture="environment" hidden>
+
+  <div class="upload-box" onclick="openCamera()">
+    📷 Tap to Scan Food
+  </div>
+
+  <button onclick="analyzeFood()">Analyze</button>
+
+  <div class="result">
+    <h3 id="foodName">Food: -</h3>
+    <p id="calories">Calories: -</p>
+    <p id="health">Health: -</p>
+  </div>
+</div>
+
+<script>
+
+// 🔑 ADD YOUR KEYS HERE
+const CLARIFAI_API_KEY = "PASTE_NEW_KEY_HERE";
+const EDAMAM_APP_ID = "PASTE_APP_ID";
+const EDAMAM_APP_KEY = "PASTE_APP_KEY";
+
+function openCamera() {
+  document.getElementById("imageInput").click();
+}
+
+function toBase64(file) {
+  return new Promise((resolve) => {
+    let reader = new FileReader();
+    reader.readAsDataURL(file);
+    reader.onload = () => resolve(reader.result);
+  });
+}
+
+async function analyzeFood() {
+
+  let file = document.getElementById("imageInput").files[0];
+  if (!file) return alert("Select image first");
+
+  document.getElementById("foodName").innerText = "Detecting...";
+
+  let base64 = await toBase64(file);
+
+  try {
+
+    // 🤖 Detect food
+    let aiRes = await fetch("https://api.clarifai.com/v2/models/food-item-recognition/outputs", {
+      method: "POST",
+      headers: {
+        "Authorization": "Key " + CLARIFAI_API_KEY,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        inputs: [{
+          data: { image: { base64: base64.split(",")[1] } }
+        }]
+      })
+    });
+
+    let aiData = await aiRes.json();
+    let food = aiData.outputs[0].data.concepts[0].name;
+
+    // 🍎 Get calories
+    let res = await fetch(
+      `https://api.edamam.com/api/nutrition-data?app_id=${EDAMAM_APP_ID}&app_key=${EDAMAM_APP_KEY}&ingr=1%20${food}`
+    );
+
+    let data = await res.json();
+    let calories = data.calories || 0;
+
+    // 💪 Health logic
+    let health = "Good";
+    if (calories > 300) health = "Avoid";
+    else if (calories > 150) health = "Moderate";
+
+    document.getElementById("foodName").innerText = "Food: " + food;
+    document.getElementById("calories").innerText = "Calories: " + calories;
+    document.getElementById("health").innerText = "Health: " + health;
+
+  } catch (err) {
+    alert("Error: Check API keys or internet");
+    console.log(err);
+  }
+}
+
+</script>
+
+</body>
+</html>
